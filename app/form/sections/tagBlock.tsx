@@ -13,7 +13,7 @@ export default function TagBlock() {
   const handleAdd = () => {
     dispatch(addTag({
       id: crypto.randomUUID(),
-      questionId: '',
+      questionName: '',
       tag_name: '',
       tag_parentId: '',
       tag_parentName: '',
@@ -31,7 +31,7 @@ export default function TagBlock() {
   return (
     <div className="space-y-4">
       {questions.map((question, index) => {
-        const tagItem = tags.find(tag => tag.questionId === question.id) || {
+        const tagItem = tags.find(tag => tag.questionName === question.id) || {
           id: crypto.randomUUID(),
           questionId: question.id,
           tag_name: '',
