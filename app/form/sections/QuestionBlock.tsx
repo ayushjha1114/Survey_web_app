@@ -64,7 +64,7 @@ export default function QuestionBlock() {
   };
 
   const handleChange = (id: string, field: string, value: any) => {
-    dispatch(updateQuestion({ id, field, value }));
+    // dispatch(updateQuestion({ id, field, value }));
   };
 
   return (

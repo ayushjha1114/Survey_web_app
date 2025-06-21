@@ -34,7 +34,7 @@ export default function ReferenceBlock() {
   const reference = useAppSelector((state) => state.reference);
 
   const handleChange = (field: string, value: any) => {
-    dispatch(updateReference({ field, value }));
+    // dispatch(updateReference({ field, value }));
   };
 
   const [multiInput, setMultiInput] = useState('');
