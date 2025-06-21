@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { updateCondition, addCondition, removeCondition } from '@/store/slices/conditionSlice';
 import Select from 'react-select';
 import { Plus, Trash2 } from 'lucide-react';
+import { useAppDispatch, useAppSelector } from '@/store/hooks';
+import { updateCondition, addCondition, removeCondition } from '@/store/slices/conditionSlice';
+import type { ConditionItem } from '@/store/slices/conditionSlice';
 
 const conditionOptions = [
   { value: 'TRUE', label: 'TRUE' },
@@ -49,7 +50,7 @@ export default function ConditionBlock() {
     dispatch(removeCondition(id));
   };
 
-  const handleChange = (id: string, field: string, value: any) => {
+  const handleChange = (id: string, field: keyof ConditionItem, value: any) => {
     dispatch(updateCondition({ id, field, value }));
   };
 
