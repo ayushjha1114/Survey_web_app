@@ -1,4 +1,5 @@
 import React from 'react';
+import { Toaster } from 'react-hot-toast';
 import Sidebar from '@/components/Sidebar';
 import Navbar from '@/components/Navbar';
 import './globals.css';
@@ -8,6 +9,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className="flex h-screen overflow-hidden text-gray-900 bg-gray-50">
+        <Toaster position="top-right" />
         <Providers>
           <Sidebar />
           <div className="flex flex-col flex-1 overflow-hidden">
@@ -18,6 +20,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </div>
         </Providers>
       </body>
-    </html>
+    </html >
   );
 }

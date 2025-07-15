@@ -1,14 +1,22 @@
 'use client';
 
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Save } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { addSection, removeSection, updateSection } from '@/store/slices/sectionSlice';
 import { useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 
+type LocalSection = {
+  id: string;
+  section: string;
+  sectionSeq: string;
+  isNew: boolean;
+};
+
 export default function SectionBlock() {
   const dispatch = useAppDispatch();
-  const sections = useAppSelector(state => state.section.list);
+  const savedSections = useAppSelector(state => state.section.list);
+  const [localSections, setLocalSections] = useState<LocalSection[]>([]);
   const [localErrors, setLocalErrors] = useState<Record<string, { section?: string; sectionSeq?: string }>>({});
 
   const validate = (section: string, sectionSeq: string) => {
@@ -19,18 +27,35 @@ export default function SectionBlock() {
     return errors;
   };
 
-  const handleAdd = (id: string, section: string, sectionSeq: string) => {
-    const errors = validate(section, sectionSeq);
+  const handleFieldChange = (id: string, field: keyof Omit<LocalSection, 'id' | 'isNew'>, value: string) => {
+    setLocalSections(prev =>
+      prev.map(s => (s.id === id ? { ...s, [field]: value } : s))
+    );
+    setLocalErrors(prev => ({
+      ...prev,
+      [id]: { ...prev[id], [field]: '' },
+    }));
+  };
+
+  const handleAddRow = () => {
+    setLocalSections(prev => [...prev, { id: uuidv4(), section: '', sectionSeq: '', isNew: true }]);
+  };
+
+  const handleSave = (row: LocalSection) => {
+    const errors = validate(row.section, row.sectionSeq);
     if (Object.keys(errors).length > 0) {
-      setLocalErrors(prev => ({ ...prev, [id]: errors }));
+      setLocalErrors(prev => ({ ...prev, [row.id]: errors }));
       return;
     }
-    setLocalErrors(prev => ({ ...prev, [id]: {} }));
-    dispatch(addSection({ id: uuidv4(), section: '', sectionSeq: '' }));
+    dispatch(addSection({ id: row.id, section: row.section, sectionSeq: row.sectionSeq }));
+    setLocalSections(prev => prev.map(s => s.id === row.id ? { ...s, isNew: false } : s));
+    setLocalErrors(prev => ({ ...prev, [row.id]: {} }));
   };
 
   const handleRemove = (id: string) => {
-    dispatch(removeSection(id));
+    const isSaved = savedSections.find(s => s.id === id);
+    if (isSaved) dispatch(removeSection(id));
+    setLocalSections(prev => prev.filter(s => s.id !== id));
     setLocalErrors(prev => {
       const updated = { ...prev };
       delete updated[id];
@@ -38,60 +63,75 @@ export default function SectionBlock() {
     });
   };
 
-  const handleChange = (id: string, field: 'section' | 'sectionSeq', value: string) => {
-    const item = sections.find(s => s.id === id);
-    if (item) {
-      dispatch(updateSection({ ...item, [field]: value }));
-      setLocalErrors(prev => ({ ...prev, [id]: { ...prev[id], [field]: '' } }));
-    }
-  };
-
   return (
-    <>
-      {sections.map((s, idx) => (
-        <div key={s.id} className="bg-white border border-gray-200 p-4 rounded-xl shadow-md mb-4">
-          <div className="flex flex-col md:flex-row md:items-end gap-4">
-            <div className="w-full">
+    <div className="space-y-4">
+      {localSections.map((s) => (
+        <div key={s.id} className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm">
+          <div className="grid md:grid-cols-[1fr_1fr_auto] gap-4 items-start">
+            {/* Section Name */}
+            <div>
               <label className="block text-sm font-medium text-gray-800">Section</label>
               <input
                 type="text"
-                className={`w-full mt-1 p-2 border text-gray-900 ${localErrors[s.id]?.section ? 'border-red-500' : 'border-gray-300'} rounded-md`}
+                className={`w-full mt-1 p-2 border rounded-md text-gray-900 ${localErrors[s.id]?.section ? 'border-red-500' : 'border-gray-300'
+                  }`}
                 value={s.section}
-                onChange={(e) => handleChange(s.id, 'section', e.target.value)}
+                onChange={(e) => handleFieldChange(s.id, 'section', e.target.value)}
               />
-              {localErrors[s.id]?.section && <p className="text-red-500 text-sm mt-1">{localErrors[s.id].section}</p>}
+              <p className="text-red-500 text-sm mt-1 min-h-[20px]">{localErrors[s.id]?.section || ''}</p>
             </div>
-            <div className="w-full">
+
+            {/* Section Sequence */}
+            <div>
               <label className="block text-sm font-medium text-gray-800">Section Sequence</label>
               <input
                 type="text"
                 inputMode="numeric"
-                className={`w-full mt-1 p-2 border text-gray-900 ${localErrors[s.id]?.sectionSeq ? 'border-red-500' : 'border-gray-300'} rounded-md`}
+                className={`w-full mt-1 p-2 border rounded-md text-gray-900 ${localErrors[s.id]?.sectionSeq ? 'border-red-500' : 'border-gray-300'
+                  }`}
                 value={s.sectionSeq}
-                onChange={(e) => handleChange(s.id, 'sectionSeq', e.target.value)}
+                onChange={(e) => {
+                  const onlyNumbers = e.target.value.replace(/[^0-9]/g, '');
+                  handleFieldChange(s.id, 'sectionSeq', onlyNumbers);
+                }}
               />
-              {localErrors[s.id]?.sectionSeq && <p className="text-red-500 text-sm mt-1">{localErrors[s.id].sectionSeq}</p>}
+              <p className="text-red-500 text-sm mt-1 min-h-[20px]">{localErrors[s.id]?.sectionSeq || ''}</p>
             </div>
-            <div className="flex items-end h-full">
-              {idx === sections.length - 1 ? (
+
+            {/* Icon Buttons */}
+            <div className="flex gap-4 pt-7 md:pt-[30px] items-center justify-start md:justify-end">
+              {s.isNew && (
                 <button
-                  onClick={() => handleAdd(s.id, s.section, s.sectionSeq)}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                  onClick={() => handleSave(s)}
+                  title="Save Section"
+                  className="text-green-600 hover:text-green-700"
                 >
-                  <Plus size={18} /> Add
-                </button>
-              ) : (
-                <button
-                  onClick={() => handleRemove(s.id)}
-                  className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-                >
-                  <Trash2 size={18} /> Remove
+                  <Save size={20} />
                 </button>
               )}
+              <button
+                onClick={() => handleRemove(s.id)}
+                title="Delete Section"
+                className="text-red-600 hover:text-red-700"
+              >
+                <Trash2 size={20} />
+              </button>
             </div>
           </div>
         </div>
       ))}
-    </>
+
+      {/* Add Section Icon Button */}
+      <div className="flex justify-end mt-4">
+        <button
+          onClick={handleAddRow}
+          title="Add New Section"
+          className="w-10 h-10 rounded-full border border-blue-500 text-blue-500 hover:bg-blue-50 flex items-center justify-center transition"
+        >
+          <Plus size={20} />
+        </button>
+
+      </div>
+    </div>
   );
 }

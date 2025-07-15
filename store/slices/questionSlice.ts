@@ -22,6 +22,7 @@ const questionSlice = createSlice({
   initialState,
   reducers: {
     addQuestion: (state, action: PayloadAction<QuestionItem>) => {
+       if (!action.payload.question.trim()) return;
       state.list.push(action.payload);
     },
     removeQuestion: (state, action: PayloadAction<string>) => {

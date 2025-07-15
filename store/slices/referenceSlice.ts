@@ -37,9 +37,12 @@ const referenceSlice = createSlice({
   reducers: {
     updateReference(state, action: PayloadAction<{ field: keyof ReferenceState; value: any }>) {
       state[action.payload.field] = action.payload.value;
+    },
+    addReference(_state, action: PayloadAction<ReferenceState>) {
+      return action.payload;
     }
   }
 });
 
-export const { updateReference } = referenceSlice.actions;
+export const { addReference, updateReference } = referenceSlice.actions;
 export default referenceSlice.reducer;

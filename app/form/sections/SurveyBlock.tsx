@@ -1,37 +1,63 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Save, X } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { addSurvey, removeSurvey, updateSurvey } from '@/store/slices/surveySlice';
 import { v4 as uuidv4 } from 'uuid';
 
-export default function SurveySection() {
+type LocalSurvey = {
+  id: string;
+  name: string;
+  section_ref: number[];
+  isNew: boolean;
+};
+
+export default function SurveyBlock() {
   const dispatch = useAppDispatch();
-  const surveys = useAppSelector(state => state.survey.list);
+  const surveysFromStore = useAppSelector(state => state.survey.list);
 
+  const [localSurveys, setLocalSurveys] = useState<LocalSurvey[]>([]);
   const [localErrors, setLocalErrors] = useState<Record<string, { surveyName?: string; surveyRef?: string }>>({});
+  const [multiInputs, setMultiInputs] = useState<Record<string, string>>({});
 
-  const validate = (surveyName: string, surveyRef: string) => {
+  const validate = (surveyName: string = '', surveyRef: number[] = []) => {
     const errors: { surveyName?: string; surveyRef?: string } = {};
     if (!surveyName.trim()) errors.surveyName = 'Survey name is required';
-    if (!surveyRef.trim()) errors.surveyRef = 'Survey section reference is required';
-    else if (!/^[0-9]+$/.test(surveyRef.trim())) errors.surveyRef = 'Only numeric values are allowed';
+    if (!surveyRef || surveyRef.length === 0) errors.surveyRef = 'At least one section is required';
     return errors;
   };
 
-  const handleAdd = (id: string, surveyName: string, surveyRef: string) => {
-    const errors = validate(surveyName, surveyRef);
+  const handleFieldChange = (id: string, field: keyof Omit<LocalSurvey, 'id' | 'isNew'>, value: any) => {
+    setLocalSurveys(prev =>
+      prev.map(s => (s.id === id ? { ...s, [field]: value } : s))
+    );
+    setLocalErrors(prev => ({
+      ...prev,
+      [id]: { ...prev[id], [field === 'name' ? 'surveyName' : 'surveyRef']: '' },
+    }));
+  };
+
+  const handleAddRow = () => {
+    setLocalSurveys(prev => [...prev, { id: uuidv4(), name: '', section_ref: [], isNew: true }]);
+  };
+
+  const handleSave = (row: LocalSurvey) => {
+    const errors = validate(row.name, row.section_ref);
     if (Object.keys(errors).length > 0) {
-      setLocalErrors(prev => ({ ...prev, [id]: errors }));
+      setLocalErrors(prev => ({ ...prev, [row.id]: errors }));
       return;
     }
-    setLocalErrors(prev => ({ ...prev, [id]: {} }));
-    dispatch(addSurvey({ id: uuidv4(), surveyName: '', surveyRef: '' }));
+
+    dispatch(addSurvey({ id: row.id, name: row.name, section_ref: row.section_ref }));
+    setLocalSurveys(prev => prev.map(s => s.id === row.id ? { ...s, isNew: false } : s));
+    setLocalErrors(prev => ({ ...prev, [row.id]: {} }));
   };
 
   const handleRemove = (id: string) => {
-    dispatch(removeSurvey(id));
+    const isSaved = surveysFromStore.find(s => s.id === id);
+    if (isSaved) dispatch(removeSurvey(id));
+    setLocalSurveys(prev => prev.filter(s => s.id !== id));
     setLocalErrors(prev => {
       const updated = { ...prev };
       delete updated[id];
@@ -39,61 +65,132 @@ export default function SurveySection() {
     });
   };
 
-  const handleChange = (id: string, field: 'surveyName' | 'surveyRef', value: string) => {
-    const survey = surveys.find(s => s.id === id);
-    if (survey) {
-      const updated = { ...survey, [field]: value };
-      dispatch(updateSurvey(updated));
-      setLocalErrors(prev => ({ ...prev, [id]: { ...prev[id], [field]: '' } }));
+  const handleMultiInput = (id: string, value: string) => {
+    setMultiInputs(prev => ({ ...prev, [id]: value }));
+  };
+
+  const handleMultiKeyDown = (id: string, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const inputVal = multiInputs[id]?.trim();
+      if (!inputVal) return;
+
+      const num = parseInt(inputVal, 10);
+      if (isNaN(num)) {
+        setLocalErrors(prev => ({
+          ...prev,
+          [id]: { ...prev[id], surveyRef: 'Only numbers are allowed' },
+        }));
+        return;
+      }
+
+      const survey = localSurveys.find(s => s.id === id);
+      if (!survey) return;
+
+      const sectionRef = survey.section_ref ?? [];
+      if (!sectionRef.includes(num)) {
+        const updated = {
+          ...survey,
+          section_ref: [...sectionRef, num],
+        };
+        setLocalSurveys(prev => prev.map(s => s.id === id ? updated : s));
+      }
+
+      setMultiInputs(prev => ({ ...prev, [id]: '' }));
+      setLocalErrors(prev => ({
+        ...prev,
+        [id]: { ...prev[id], surveyRef: '' },
+      }));
     }
   };
 
+  const removeRefItem = (id: string, refValue: number) => {
+    setLocalSurveys(prev =>
+      prev.map(s =>
+        s.id === id
+          ? { ...s, section_ref: (s.section_ref ?? []).filter(n => n !== refValue) }
+          : s
+      )
+    );
+  };
+
   return (
-    <>
-      {surveys.map((s, idx) => (
-        <div key={s.id} className="bg-white border border-gray-200 p-4 rounded-xl shadow-md mb-4">
-          <div className="flex flex-col md:flex-row md:items-end gap-4">
-            <div className="w-full">
+    <div className="space-y-4">
+      {localSurveys.map((s) => (
+        <div key={s.id} className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm">
+          <div className="grid md:grid-cols-[1fr_1fr_auto] gap-4 items-start">
+            {/* Survey Name */}
+            <div>
               <label className="block text-sm font-medium text-gray-800">Survey Name</label>
               <input
                 type="text"
-                className={`w-full mt-1 p-2 border text-gray-900 ${localErrors[s.id]?.surveyName ? 'border-red-500' : 'border-gray-300'} rounded-md`}
-                value={s.surveyName}
-                onChange={e => handleChange(s.id, 'surveyName', e.target.value)}
+                className={`w-full mt-1 p-2 border rounded-md text-gray-900 ${localErrors[s.id]?.surveyName ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                value={s.name}
+                onChange={(e) => handleFieldChange(s.id, 'name', e.target.value)}
               />
-              {localErrors[s.id]?.surveyName && <p className="text-red-500 text-sm mt-1">{localErrors[s.id]?.surveyName}</p>}
+              <p className="text-red-500 text-sm mt-1 min-h-[20px]">{localErrors[s.id]?.surveyName || ''}</p>
             </div>
-            <div className="w-full">
+
+            {/* Survey Section Reference */}
+            <div>
               <label className="block text-sm font-medium text-gray-800">Survey Section Reference</label>
-              <input
-                type="text"
-                inputMode="numeric"
-                className={`w-full mt-1 p-2 border text-gray-900 ${localErrors[s.id]?.surveyRef ? 'border-red-500' : 'border-gray-300'} rounded-md`}
-                value={s.surveyRef}
-                onChange={e => handleChange(s.id, 'surveyRef', e.target.value)}
-              />
-              {localErrors[s.id]?.surveyRef && <p className="text-red-500 text-sm mt-1">{localErrors[s.id]?.surveyRef}</p>}
+              <div className="flex flex-wrap items-center gap-2 mt-1 border p-2 rounded-md min-h-[40px] border-gray-300">
+                {(s.section_ref ?? []).map(ref => (
+                  <div
+                    key={ref}
+                    className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded flex items-center gap-1 text-sm"
+                  >
+                    {ref}
+                    <button type="button" onClick={() => removeRefItem(s.id, ref)}>
+                      <X size={14} />
+                    </button>
+                  </div>
+                ))}
+                <input
+                  value={multiInputs[s.id] || ''}
+                  onChange={e => handleMultiInput(s.id, e.target.value)}
+                  onKeyDown={e => handleMultiKeyDown(s.id, e)}
+                  className="flex-grow min-w-[100px] focus:outline-none text-sm px-1 placeholder:text-gray-400"
+                  placeholder="Type number and press Enter"
+                />
+              </div>
+              <p className="text-red-500 text-sm mt-1 min-h-[20px]">{localErrors[s.id]?.surveyRef || ''}</p>
             </div>
-            <div className="flex items-end h-full">
-              {idx === surveys.length - 1 ? (
+
+            {/* Icon Buttons */}
+            <div className="flex gap-4 pt-7 md:pt-[30px] items-center justify-start md:justify-end">
+              {s.isNew && (
                 <button
-                  onClick={() => handleAdd(s.id, s.surveyName, s.surveyRef)}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                  onClick={() => handleSave(s)}
+                  title="Save Survey"
+                  className="text-green-600 hover:text-green-700"
                 >
-                  <Plus size={18} /> Add
-                </button>
-              ) : (
-                <button
-                  onClick={() => handleRemove(s.id)}
-                  className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-                >
-                  <Trash2 size={18} /> Remove
+                  <Save size={20} />
                 </button>
               )}
+              <button
+                onClick={() => handleRemove(s.id)}
+                title="Delete Survey"
+                className="text-red-600 hover:text-red-700"
+              >
+                <Trash2 size={20} />
+              </button>
             </div>
           </div>
         </div>
       ))}
-    </>
+
+      {/* Add Survey Icon Button */}
+      <div className="flex justify-end mt-4">
+        <button
+          onClick={handleAddRow}
+          title="Add New Survey"
+          className="w-10 h-10 rounded-full border border-blue-500 text-blue-500 hover:bg-blue-50 flex items-center justify-center transition"
+        >
+          <Plus size={20} />
+        </button>
+      </div>
+    </div>
   );
 }

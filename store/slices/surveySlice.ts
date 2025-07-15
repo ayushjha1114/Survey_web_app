@@ -1,10 +1,10 @@
-// /store/surveySlice.ts
+// /store/slices/surveySlice.ts
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
 export interface SurveyItem {
   id: string;
-  surveyName: string;
-  surveyRef: string;
+  name: string;
+  section_ref: number[];
 }
 
 interface SurveyState {
@@ -27,7 +27,9 @@ const surveySlice = createSlice({
     },
     updateSurvey: (state, action: PayloadAction<SurveyItem>) => {
       const index = state.list.findIndex(s => s.id === action.payload.id);
-      if (index !== -1) state.list[index] = action.payload;
+      if (index !== -1) {
+        state.list[index] = action.payload;
+      }
     },
   },
 });

@@ -1,6 +1,6 @@
 'use client';
 
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Save } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { addOption, removeOption, updateOption } from '@/store/slices/optionSlice';
 import { useState } from 'react';
@@ -19,9 +19,19 @@ const OPTION_TYPES = [
   'MultiSelectDropDown',
 ];
 
+type LocalOption = {
+  id: string;
+  option: string;
+  optionType: string;
+  optionSeq: string;
+  isNew: boolean;
+};
+
 export default function OptionBlock() {
   const dispatch = useAppDispatch();
-  const options = useAppSelector(state => state.option.list);
+  const savedOptions = useAppSelector(state => state.option.list);
+
+  const [localOptions, setLocalOptions] = useState<LocalOption[]>([]);
   const [localErrors, setLocalErrors] = useState<Record<string, { option?: string; optionType?: string; optionSeq?: string }>>({});
 
   const validate = (option: string, optionType: string, optionSeq: string) => {
@@ -33,18 +43,44 @@ export default function OptionBlock() {
     return errors;
   };
 
-  const handleAdd = (id: string, option: string, optionType: string, optionSeq: string) => {
-    const errors = validate(option, optionType, optionSeq);
+  const handleFieldChange = (id: string, field: keyof Omit<LocalOption, 'id' | 'isNew'>, value: string) => {
+    setLocalOptions(prev =>
+      prev.map(o => (o.id === id ? { ...o, [field]: value } : o))
+    );
+    setLocalErrors(prev => ({
+      ...prev,
+      [id]: { ...prev[id], [field]: '' },
+    }));
+  };
+
+  const handleAddRow = () => {
+    setLocalOptions(prev => [
+      ...prev,
+      { id: uuidv4(), option: '', optionType: '', optionSeq: '', isNew: true },
+    ]);
+  };
+
+  const handleSave = (row: LocalOption) => {
+    const errors = validate(row.option, row.optionType, row.optionSeq);
     if (Object.keys(errors).length > 0) {
-      setLocalErrors(prev => ({ ...prev, [id]: errors }));
+      setLocalErrors(prev => ({ ...prev, [row.id]: errors }));
       return;
     }
-    setLocalErrors(prev => ({ ...prev, [id]: {} }));
-    dispatch(addOption({ id: uuidv4(), option: '', optionType: '', optionSeq: '' }));
+
+    dispatch(addOption({
+      id: row.id,
+      option: row.option,
+      optionType: row.optionType,
+      optionSeq: row.optionSeq,
+    }));
+    setLocalOptions(prev => prev.map(o => o.id === row.id ? { ...o, isNew: false } : o));
+    setLocalErrors(prev => ({ ...prev, [row.id]: {} }));
   };
 
   const handleRemove = (id: string) => {
-    dispatch(removeOption(id));
+    const isSaved = savedOptions.find(o => o.id === id);
+    if (isSaved) dispatch(removeOption(id));
+    setLocalOptions(prev => prev.filter(o => o.id !== id));
     setLocalErrors(prev => {
       const updated = { ...prev };
       delete updated[id];
@@ -52,77 +88,91 @@ export default function OptionBlock() {
     });
   };
 
-  const handleChange = (id: string, field: 'option' | 'optionType' | 'optionSeq', value: string) => {
-    const item = options.find(o => o.id === id);
-    if (item) {
-      dispatch(updateOption({ ...item, [field]: value }));
-      setLocalErrors(prev => ({ ...prev, [id]: { ...prev[id], [field]: '' } }));
-    }
-  };
-
   return (
-    <>
-      {options.map((o, idx) => (
-        <div key={o.id} className="bg-white border border-gray-200 p-4 rounded-xl shadow-md mb-4">
-          <div className="flex flex-col md:flex-row md:items-end gap-4">
-            <div className="w-full">
+    <div className="space-y-4">
+      {localOptions.map((o) => (
+        <div key={o.id} className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm">
+          <div className="grid md:grid-cols-[1fr_1fr_1fr_auto] gap-4 items-start">
+            {/* Option */}
+            <div>
               <label className="block text-sm font-medium text-gray-800">Option</label>
               <input
                 type="text"
-                className={`w-full mt-1 p-2 border text-gray-900 ${localErrors[o.id]?.option ? 'border-red-500' : 'border-gray-300'} rounded-md`}
+                className={`w-full mt-1 p-2 border rounded-md text-gray-900 ${localErrors[o.id]?.option ? 'border-red-500' : 'border-gray-300'
+                  }`}
                 value={o.option}
-                onChange={(e) => handleChange(o.id, 'option', e.target.value)}
+                onChange={(e) => handleFieldChange(o.id, 'option', e.target.value)}
               />
-              {localErrors[o.id]?.option && <p className="text-red-500 text-sm mt-1">{localErrors[o.id].option}</p>}
+              <p className="text-red-500 text-sm mt-1 min-h-[20px]">{localErrors[o.id]?.option || ''}</p>
             </div>
 
-            <div className="w-full">
+            {/* Option Type */}
+            <div>
               <label className="block text-sm font-medium text-gray-800">Option Type</label>
               <select
-                className={`w-full mt-1 p-2 border text-gray-900 ${localErrors[o.id]?.optionType ? 'border-red-500' : 'border-gray-300'} rounded-md`}
+                className={`w-full mt-1 p-2 border rounded-md text-gray-900 ${localErrors[o.id]?.optionType ? 'border-red-500' : 'border-gray-300'
+                  }`}
                 value={o.optionType}
-                onChange={(e) => handleChange(o.id, 'optionType', e.target.value)}
+                onChange={(e) => handleFieldChange(o.id, 'optionType', e.target.value)}
               >
                 <option value="">Select Type</option>
                 {OPTION_TYPES.map(type => (
                   <option key={type} value={type}>{type}</option>
                 ))}
               </select>
-              {localErrors[o.id]?.optionType && <p className="text-red-500 text-sm mt-1">{localErrors[o.id].optionType}</p>}
+              <p className="text-red-500 text-sm mt-1 min-h-[20px]">{localErrors[o.id]?.optionType || ''}</p>
             </div>
 
-            <div className="w-full">
+            {/* Option Sequence */}
+            <div>
               <label className="block text-sm font-medium text-gray-800">Option Sequence</label>
               <input
                 type="text"
                 inputMode="numeric"
-                className={`w-full mt-1 p-2 border text-gray-900 ${localErrors[o.id]?.optionSeq ? 'border-red-500' : 'border-gray-300'} rounded-md`}
+                className={`w-full mt-1 p-2 border rounded-md text-gray-900 ${localErrors[o.id]?.optionSeq ? 'border-red-500' : 'border-gray-300'
+                  }`}
                 value={o.optionSeq}
-                onChange={(e) => handleChange(o.id, 'optionSeq', e.target.value)}
+                onChange={(e) => {
+                  const onlyNumbers = e.target.value.replace(/[^0-9]/g, '');
+                  handleFieldChange(o.id, 'optionSeq', onlyNumbers);
+                }}
               />
-              {localErrors[o.id]?.optionSeq && <p className="text-red-500 text-sm mt-1">{localErrors[o.id].optionSeq}</p>}
+              <p className="text-red-500 text-sm mt-1 min-h-[20px]">{localErrors[o.id]?.optionSeq || ''}</p>
             </div>
 
-            <div className="flex items-end h-full">
-              {idx === options.length - 1 ? (
+            {/* Icon Buttons */}
+            <div className="flex gap-4 pt-7 md:pt-[30px] items-center justify-start md:justify-end">
+              {o.isNew && (
                 <button
-                  onClick={() => handleAdd(o.id, o.option, o.optionType, o.optionSeq)}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                  onClick={() => handleSave(o)}
+                  title="Save Option"
+                  className="text-green-600 hover:text-green-700"
                 >
-                  <Plus size={18} /> Add
-                </button>
-              ) : (
-                <button
-                  onClick={() => handleRemove(o.id)}
-                  className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-                >
-                  <Trash2 size={18} /> Remove
+                  <Save size={20} />
                 </button>
               )}
+              <button
+                onClick={() => handleRemove(o.id)}
+                title="Delete Option"
+                className="text-red-600 hover:text-red-700"
+              >
+                <Trash2 size={20} />
+              </button>
             </div>
           </div>
         </div>
       ))}
-    </>
+
+      {/* Add Option Button */}
+      <div className="flex justify-end mt-4">
+        <button
+          onClick={handleAddRow}
+          title="Add New Option"
+          className="w-10 h-10 rounded-full border border-blue-500 text-blue-500 hover:bg-blue-50 flex items-center justify-center transition"
+        >
+          <Plus size={20} />
+        </button>
+      </div>
+    </div>
   );
 }

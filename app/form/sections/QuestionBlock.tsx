@@ -1,10 +1,11 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { addQuestion, removeQuestion, updateQuestion } from '@/store/slices/questionSlice';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Save } from 'lucide-react';
 import Select from 'react-select';
+import { v4 as uuidv4 } from 'uuid';
 
 const questionTypeOptions = [
   'SingleSelectDropDown',
@@ -19,7 +20,6 @@ const questionTypeOptions = [
   'MultiSelectDropDown',
 ].map(type => ({ value: type, label: type }));
 
-// Shared styles for react-select
 const customSelectStyles = {
   control: (base: any) => ({
     ...base,
@@ -30,14 +30,26 @@ const customSelectStyles = {
   menuPortal: (base: any) => ({
     ...base,
     zIndex: 9999,
+    color: '#4A5568',
   }),
+};
+
+type LocalQuestion = {
+  id: string;
+  question: string;
+  questionType: string;
+  questionOptionRef: string[];
+  questionSectionRef: string[];
+  isNew: boolean;
 };
 
 export default function QuestionBlock() {
   const dispatch = useAppDispatch();
-  const questions = useAppSelector((state) => state.question.list);
+  const savedQuestions = useAppSelector((state) => state.question.list);
   const options = useAppSelector((state) => state.option.list);
   const sections = useAppSelector((state) => state.section.list);
+
+  const [localQuestions, setLocalQuestions] = useState<LocalQuestion[]>([]);
 
   const optionRefOptions = options
     .filter(opt => opt.optionSeq)
@@ -47,111 +59,148 @@ export default function QuestionBlock() {
     .filter(sec => sec.sectionSeq)
     .map(sec => ({ value: sec.id, label: `${sec.section} (${sec.sectionSeq})` }));
 
-  const handleAdd = () => {
-    dispatch(
-      addQuestion({
-        id: crypto.randomUUID(),
+  const handleFieldChange = (
+    id: string,
+    field: keyof Omit<LocalQuestion, 'id' | 'isNew'>,
+    value: any
+  ) => {
+    setLocalQuestions(prev =>
+      prev.map(q => (q.id === id ? { ...q, [field]: value } : q))
+    );
+  };
+
+  const handleAddRow = () => {
+    setLocalQuestions(prev => [
+      ...prev,
+      {
+        id: uuidv4(),
         question: '',
         questionType: '',
         questionOptionRef: [],
-        questionSectionRef: []
+        questionSectionRef: [],
+        isNew: true,
+      },
+    ]);
+  };
+
+  const handleSave = (q: LocalQuestion) => {
+    if (!q.question.trim() || !q.questionType.trim()) return;
+    dispatch(
+      addQuestion({
+        id: q.id,
+        question: q.question,
+        questionType: q.questionType,
+        questionOptionRef: q.questionOptionRef,
+        questionSectionRef: q.questionSectionRef,
       })
+    );
+    setLocalQuestions(prev =>
+      prev.map(item => (item.id === q.id ? { ...item, isNew: false } : item))
     );
   };
 
   const handleRemove = (id: string) => {
-    dispatch(removeQuestion(id));
-  };
-
-  const handleChange = (id: string, field: string, value: any) => {
-    // dispatch(updateQuestion({ id, field, value }));
+    const isSaved = savedQuestions.find(q => q.id === id);
+    if (isSaved) dispatch(removeQuestion(id));
+    setLocalQuestions(prev => prev.filter(q => q.id !== id));
   };
 
   return (
     <div className="space-y-4">
-      {questions.map((item, index) => (
-        <div
-          key={item.id}
-          className="bg-white p-4 rounded-lg shadow-sm border border-gray-200"
-        >
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end text-gray-800">
-            {/* Question Input */}
+      {localQuestions.map((item) => (
+        <div key={item.id} className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+          <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr_1fr_auto] gap-4 items-start text-gray-800">
+            {/* Question */}
             <div>
               <label className="block text-xs font-medium mb-1">Question</label>
               <input
                 type="text"
                 value={item.question}
-                onChange={(e) => handleChange(item.id, 'question', e.target.value)}
+                onChange={(e) => handleFieldChange(item.id, 'question', e.target.value)}
                 className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
                 placeholder="Enter question"
               />
             </div>
 
-            {/* Question Type Dropdown */}
+            {/* Type */}
             <div>
               <label className="block text-xs font-medium mb-1">Type</label>
               <Select
                 options={questionTypeOptions}
                 value={questionTypeOptions.find(opt => opt.value === item.questionType) || null}
-                onChange={(selected) => handleChange(item.id, 'questionType', selected?.value || '')}
+                onChange={(selected) =>
+                  handleFieldChange(item.id, 'questionType', selected?.value || '')
+                }
                 styles={customSelectStyles}
                 menuPortalTarget={typeof window !== 'undefined' ? document.body : null}
               />
             </div>
 
-            {/* Option Reference Multi-Select */}
+            {/* Option Ref */}
             <div>
               <label className="block text-xs font-medium mb-1">Option Ref</label>
               <Select
                 isMulti
                 options={optionRefOptions}
-                value={optionRefOptions.filter(opt => item.questionOptionRef?.includes(opt.value))}
+                value={optionRefOptions.filter(opt => item.questionOptionRef.includes(opt.value))}
                 onChange={(selected) =>
-                  handleChange(item.id, 'questionOptionRef', selected?.map(s => s.value) || [])
+                  handleFieldChange(item.id, 'questionOptionRef', selected.map(s => s.value))
                 }
                 styles={customSelectStyles}
                 menuPortalTarget={typeof window !== 'undefined' ? document.body : null}
               />
             </div>
 
-            {/* Section Reference Multi-Select */}
+            {/* Section Ref */}
             <div>
               <label className="block text-xs font-medium mb-1">Section Ref</label>
               <Select
                 isMulti
                 options={sectionRefOptions}
-                value={sectionRefOptions.filter(opt => item.questionSectionRef?.includes(opt.value))}
+                value={sectionRefOptions.filter(opt => item.questionSectionRef.includes(opt.value))}
                 onChange={(selected) =>
-                  handleChange(item.id, 'questionSectionRef', selected?.map(s => s.value) || [])
+                  handleFieldChange(item.id, 'questionSectionRef', selected.map(s => s.value))
                 }
                 styles={customSelectStyles}
                 menuPortalTarget={typeof window !== 'undefined' ? document.body : null}
               />
             </div>
 
-            {/* Add / Remove Button */}
-            <div className="flex justify-end mt-5 md:mt-0">
-              {index === questions.length - 1 ? (
+            {/* Action Icons */}
+            <div className="flex items-center justify-end gap-3 pt-6 md:pt-7">
+              {item.isNew && (
                 <button
                   type="button"
-                  onClick={handleAdd}
-                  className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1 rounded flex items-center gap-1"
+                  onClick={() => handleSave(item)}
+                  title="Save Question"
+                  className="text-green-600 hover:text-green-700"
                 >
-                  <Plus size={14} /> Add
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => handleRemove(item.id)}
-                  className="bg-red-600 hover:bg-red-700 text-white text-xs px-3 py-1 rounded flex items-center gap-1"
-                >
-                  <Trash2 size={14} /> Remove
+                  <Save size={20} />
                 </button>
               )}
+              <button
+                type="button"
+                onClick={() => handleRemove(item.id)}
+                title="Delete Question"
+                className="text-red-600 hover:text-red-700"
+              >
+                <Trash2 size={20} />
+              </button>
             </div>
           </div>
         </div>
       ))}
+
+      {/* Add Question Icon */}
+      <div className="flex justify-end mt-4">
+        <button
+          onClick={handleAddRow}
+          title="Add New Question"
+          className="w-10 h-10 rounded-full border border-blue-500 text-blue-500 hover:bg-blue-50 flex items-center justify-center transition"
+        >
+          <Plus size={20} />
+        </button>
+      </div>
     </div>
   );
 }

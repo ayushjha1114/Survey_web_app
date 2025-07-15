@@ -1,7 +1,7 @@
 'use client';
 import { useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import axios from '@/utils/api';
+import {postTranslation} from '@/utils/api';
 
 export default function FileUploader({ onResult }: { onResult: (q: string) => void }) {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -16,9 +16,7 @@ export default function FileUploader({ onResult }: { onResult: (q: string) => vo
 
     setLoading(true);
     try {
-      const res = await axios.post('/', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      const res = await postTranslation(formData);
       console.warn("🚀 ~ handleUpload ~ res:", res)
       onResult(res.data); // assuming the API returns raw insert queries as text
     } catch (err) {
