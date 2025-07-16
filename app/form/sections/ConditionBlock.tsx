@@ -69,7 +69,15 @@ export default function ConditionBlock() {
 
   const handleSave = () => {
     if (!allRowsValid || !anyRowDirty) return;
-    dispatch(addCondition(localRows));
+    // dispatch(addCondition(localRows));
+        localRows.forEach(row => {
+      dispatch(addCondition({
+        id: row.questionId,
+        question: row.question,
+        condition: row.condition,
+        conditionalSourceQuestion: row.conditionalSourceQuestion,
+      }));
+    });
     setLocalRows(prev =>
       prev.map(row => ({ ...row, isDirty: false }))
     );
