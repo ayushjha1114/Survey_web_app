@@ -53,7 +53,7 @@ export function transformPayload(payload: any) {
       name: q.question,
       type: q.questionType,
       section_ref: parseInt(q.questionSectionRef[0]),
-      // option_ref: q.questionOptionRef.map((o: string | number) => parseInt(String(o)),
+      // option_ref: q.questionOptionRef.map((o: string | number) => parseInt(String(o))
        option_ref: q.questionOptionRef.map((o: string | number) => parseInt(String(o))),
       tag: tagObj,
     };
